@@ -9,9 +9,11 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.clientscontractsapi.app.models.client.dto.CreateClientRequestDto;
+import com.clientscontractsapi.app.models.client.dto.UpdateClientRequestDto;
 import com.clientscontractsapi.app.models.client.entity.ClientEntity;
 import com.clientscontractsapi.app.persistency.client.ClientRepository;
 import java.time.LocalDate;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -108,6 +110,56 @@ class ClientControllerWriteTest {
 
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
         assertNull(response.getBody());
+        verifyNoMoreInteractions(clientRepository);
+    }
+
+    @Test
+    void updateExistingPersonClientReturnsOk() {
+        UpdateClientRequestDto request = new UpdateClientRequestDto();
+        request.setId(42L);
+        request.setEmail("updated.john@example.com");
+        request.setPhone("+111222333");
+        request.setName("John Updated");
+
+        ClientEntity existing = new ClientEntity();
+        existing.setId(42L);
+        existing.setClientType("PERSON");
+        existing.setEmail("old@example.com");
+        existing.setPhone("+999888777");
+        existing.setName("Old John");
+
+        when(clientRepository.findById(42L)).thenReturn(Optional.of(existing));
+        when(clientRepository.save(existing)).thenReturn(existing);
+
+        ResponseEntity<ClientEntity> response = clientControllerWrite.updateClient(request);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertSame(existing, response.getBody());
+        assertEquals(request.getEmail(), existing.getEmail());
+        assertEquals(request.getPhone(), existing.getPhone());
+        assertEquals(request.getName(), existing.getName());
+
+        verify(clientRepository).findById(42L);
+        verify(clientRepository).save(existing);
+        verifyNoMoreInteractions(clientRepository);
+    }
+
+    @Test
+    void updateClientReturnsNotFoundWhenMissing() {
+        UpdateClientRequestDto request = new UpdateClientRequestDto();
+        request.setId(404L);
+        request.setEmail("missing@example.com");
+        request.setPhone("+10101010");
+        request.setName("Missing Client");
+
+        when(clientRepository.findById(404L)).thenReturn(Optional.empty());
+
+        ResponseEntity<ClientEntity> response = clientControllerWrite.updateClient(request);
+
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+        assertNull(response.getBody());
+
+        verify(clientRepository).findById(404L);
         verifyNoMoreInteractions(clientRepository);
     }
 }

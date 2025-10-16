@@ -1,14 +1,17 @@
 package com.clientscontractsapi.app.controllers.client;
 
 import com.clientscontractsapi.app.models.client.dto.CreateClientRequestDto;
+import com.clientscontractsapi.app.models.client.dto.UpdateClientRequestDto;
 import com.clientscontractsapi.app.models.client.entity.ClientEntity;
 import com.clientscontractsapi.app.persistency.client.ClientRepository;
 import jakarta.validation.Valid;
 import java.time.OffsetDateTime;
+import java.util.Optional;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -48,5 +51,21 @@ public class ClientControllerWrite {
 
         ClientEntity saved = clientRepository.save(client);
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);
+    }
+
+    @PutMapping("/update-client")
+    public ResponseEntity<ClientEntity> updateClient(@Valid @RequestBody UpdateClientRequestDto request) {
+        Optional<ClientEntity> existingClient = clientRepository.findById(request.getId());
+        if (existingClient.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+
+        ClientEntity client = existingClient.get();
+        client.setEmail(request.getEmail());
+        client.setPhone(request.getPhone());
+        client.setName(request.getName());
+
+        ClientEntity saved = clientRepository.save(client);
+        return ResponseEntity.ok(saved);
     }
 }
