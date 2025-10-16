@@ -1,4 +1,4 @@
-package com.clientscontractsapi.app.controllers.contract;
+package com.clientscontractsapi.unit.controllers.contract;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -7,6 +7,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import com.clientscontractsapi.app.controllers.contract.ContractControllerRead;
 import com.clientscontractsapi.app.models.client.entity.ClientEntity;
 import com.clientscontractsapi.app.models.contract.dto.ActiveContractsCostResponseDto;
 import com.clientscontractsapi.app.models.contract.dto.ContractDto;

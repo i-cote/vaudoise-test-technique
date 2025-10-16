@@ -1,4 +1,4 @@
-package com.clientscontractsapi.app.controllers.client;
+package com.clientscontractsapi.unit.controllers.client;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -7,6 +7,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import com.clientscontractsapi.app.controllers.client.ClientControllerRead;
 import com.clientscontractsapi.app.models.client.entity.ClientEntity;
 import com.clientscontractsapi.app.persistency.client.ClientRepository;
 import java.time.LocalDate;
