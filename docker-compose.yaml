@@ -48,5 +48,13 @@ services:
     ports:
       - "8080:8080"
 
+  unit-tests:
+    build:
+      context: ./clients-contracts-api
+      dockerfile: Dockerfile
+    command: ["mvn", "test"]
+    profiles:
+      - unit-tests
+
 volumes:
   db-data:
