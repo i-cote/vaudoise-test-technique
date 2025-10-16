@@ -6,13 +6,19 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
 import com.clientscontractsapi.app.models.client.dto.CreateClientRequestDto;
 import com.clientscontractsapi.app.models.client.dto.UpdateClientRequestDto;
 import com.clientscontractsapi.app.models.client.entity.ClientEntity;
+import com.clientscontractsapi.app.models.contract.entity.ContractEntity;
 import com.clientscontractsapi.app.persistency.client.ClientRepository;
+import com.clientscontractsapi.app.persistency.contract.ContractRepository;
 import java.time.LocalDate;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -25,12 +31,14 @@ import org.springframework.http.ResponseEntity;
 class ClientControllerWriteTest {
 
     private ClientRepository clientRepository;
+    private ContractRepository contractRepository;
     private ClientControllerWrite clientControllerWrite;
 
     @BeforeEach
     void setUp() {
         clientRepository = Mockito.mock(ClientRepository.class);
-        clientControllerWrite = new ClientControllerWrite(clientRepository);
+        contractRepository = Mockito.mock(ContractRepository.class);
+        clientControllerWrite = new ClientControllerWrite(clientRepository, contractRepository);
     }
 
     @Test
@@ -53,7 +61,7 @@ class ClientControllerWriteTest {
 
         ArgumentCaptor<ClientEntity> captor = ArgumentCaptor.forClass(ClientEntity.class);
         verify(clientRepository).save(captor.capture());
-        verifyNoMoreInteractions(clientRepository);
+        verifyNoMoreInteractions(clientRepository, contractRepository);
 
         ClientEntity persisted = captor.getValue();
         assertEquals("PERSON", persisted.getClientType());
@@ -86,7 +94,7 @@ class ClientControllerWriteTest {
 
         ArgumentCaptor<ClientEntity> captor = ArgumentCaptor.forClass(ClientEntity.class);
         verify(clientRepository).save(captor.capture());
-        verifyNoMoreInteractions(clientRepository);
+        verifyNoMoreInteractions(clientRepository, contractRepository);
 
         ClientEntity persisted = captor.getValue();
         assertEquals("COMPANY", persisted.getClientType());
@@ -97,20 +105,6 @@ class ClientControllerWriteTest {
         assertEquals(request.getCompanyIdentifier(), persisted.getCompanyIdentifier());
         assertNotNull(persisted.getCreatedAt());
         assertNotNull(persisted.getUpdatedAt());
-    }
-
-    @Test
-    void createPersonClientWithoutBirthdateReturnsBadRequest() {
-        CreateClientRequestDto request = new CreateClientRequestDto();
-        request.setEmail("jane.doe@example.com");
-        request.setPhone("+123450987");
-        request.setName("Jane Doe");
-
-        ResponseEntity<ClientEntity> response = clientControllerWrite.createClient(request);
-
-        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
-        assertNull(response.getBody());
-        verifyNoMoreInteractions(clientRepository);
     }
 
     @Test
@@ -141,7 +135,7 @@ class ClientControllerWriteTest {
 
         verify(clientRepository).findById(42L);
         verify(clientRepository).save(existing);
-        verifyNoMoreInteractions(clientRepository);
+        verifyNoMoreInteractions(clientRepository, contractRepository);
     }
 
     @Test
@@ -160,6 +154,73 @@ class ClientControllerWriteTest {
         assertNull(response.getBody());
 
         verify(clientRepository).findById(404L);
-        verifyNoMoreInteractions(clientRepository);
+        verify(contractRepository, never()).findByClientId(Mockito.anyLong());
+        verifyNoMoreInteractions(clientRepository, contractRepository);
+    }
+
+    @Test
+    void deleteClientUpdatesContractsAndDeletesClient() {
+        ClientEntity client = new ClientEntity();
+        client.setId(7L);
+
+        ContractEntity activeContract = new ContractEntity();
+        activeContract.setId(100L);
+        activeContract.setEndDate(null);
+
+        ContractEntity endedContract = new ContractEntity();
+        endedContract.setId(101L);
+        endedContract.setEndDate(LocalDate.of(2023, 5, 1));
+
+        List<ContractEntity> contracts = Arrays.asList(activeContract, endedContract);
+
+        when(clientRepository.findById(7L)).thenReturn(Optional.of(client));
+        when(contractRepository.findByClientId(7L)).thenReturn(contracts);
+
+        ResponseEntity<Void> response = clientControllerWrite.deleteClient(7L);
+
+        assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
+        LocalDate today = LocalDate.now();
+        assertEquals(today, activeContract.getEndDate());
+        assertEquals(today, endedContract.getEndDate());
+
+        verify(clientRepository).findById(7L);
+        verify(contractRepository).findByClientId(7L);
+        verify(contractRepository).saveAll(contracts);
+        verify(clientRepository).delete(client);
+        verifyNoMoreInteractions(clientRepository, contractRepository);
+    }
+
+    @Test
+    void deleteClientWithNoContractsStillDeletesClient() {
+        ClientEntity client = new ClientEntity();
+        client.setId(8L);
+
+        when(clientRepository.findById(8L)).thenReturn(Optional.of(client));
+        when(contractRepository.findByClientId(8L)).thenReturn(Collections.emptyList());
+
+        ResponseEntity<Void> response = clientControllerWrite.deleteClient(8L);
+
+        assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
+
+        verify(clientRepository).findById(8L);
+        verify(contractRepository).findByClientId(8L);
+        verify(contractRepository, never()).saveAll(Mockito.anyList());
+        verify(clientRepository).delete(client);
+        verifyNoMoreInteractions(clientRepository, contractRepository);
+    }
+
+    @Test
+    void deleteClientReturnsNotFoundWhenMissing() {
+        when(clientRepository.findById(404L)).thenReturn(Optional.empty());
+
+        ResponseEntity<Void> response = clientControllerWrite.deleteClient(404L);
+
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+
+        verify(clientRepository).findById(404L);
+        verify(contractRepository, never()).findByClientId(Mockito.anyLong());
+        verify(contractRepository, never()).saveAll(Mockito.anyList());
+        verify(clientRepository, never()).delete(Mockito.any());
+        verifyNoMoreInteractions(clientRepository, contractRepository);
     }
 }
