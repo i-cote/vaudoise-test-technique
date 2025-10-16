@@ -3,6 +3,7 @@ package com.clientscontractsapi.app.controllers.contract;
 import com.clientscontractsapi.app.models.client.entity.ClientEntity;
 import com.clientscontractsapi.app.models.contract.dto.ContractDto;
 import com.clientscontractsapi.app.models.contract.dto.CreateContractRequestDto;
+import com.clientscontractsapi.app.models.contract.dto.UpdateCostAmountRequestDto;
 import com.clientscontractsapi.app.models.contract.entity.ContractEntity;
 import com.clientscontractsapi.app.persistency.client.ClientRepository;
 import com.clientscontractsapi.app.persistency.contract.ContractRepository;
@@ -12,6 +13,7 @@ import java.time.OffsetDateTime;
 import java.util.Optional;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -54,6 +56,21 @@ public class ContractControllerWrite {
 
         ContractEntity saved = contractRepository.save(contract);
         return ResponseEntity.status(HttpStatus.CREATED).body(toDto(saved));
+    }
+
+    @PatchMapping("/update-contract")
+    public ResponseEntity<ContractDto> updateContractCost(
+            @Valid @RequestBody UpdateCostAmountRequestDto request) {
+        Optional<ContractEntity> contractOpt = contractRepository.findById(request.getContractId());
+        if (contractOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+
+        ContractEntity contract = contractOpt.get();
+        contract.setCostAmount(request.getCostAmount());
+
+        ContractEntity saved = contractRepository.save(contract);
+        return ResponseEntity.ok(toDto(saved));
     }
 
     private ContractDto toDto(ContractEntity entity) {

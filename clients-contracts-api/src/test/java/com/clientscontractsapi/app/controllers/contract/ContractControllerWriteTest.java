@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 import com.clientscontractsapi.app.models.client.entity.ClientEntity;
 import com.clientscontractsapi.app.models.contract.dto.ContractDto;
 import com.clientscontractsapi.app.models.contract.dto.CreateContractRequestDto;
+import com.clientscontractsapi.app.models.contract.dto.UpdateCostAmountRequestDto;
 import com.clientscontractsapi.app.models.contract.entity.ContractEntity;
 import com.clientscontractsapi.app.persistency.client.ClientRepository;
 import com.clientscontractsapi.app.persistency.contract.ContractRepository;
@@ -127,5 +128,59 @@ class ContractControllerWriteTest {
         verify(clientRepository).findById(999L);
         verify(contractRepository, never()).save(Mockito.any());
         verifyNoMoreInteractions(clientRepository, contractRepository);
+    }
+
+    @Test
+    void updateContractCostReturnsUpdatedDto() {
+        UpdateCostAmountRequestDto request = new UpdateCostAmountRequestDto();
+        request.setContractId(55L);
+        request.setCostAmount(new BigDecimal("999.99"));
+
+        ClientEntity client = new ClientEntity();
+        client.setId(9L);
+
+        ContractEntity existing = new ContractEntity();
+        existing.setId(55L);
+        existing.setClient(client);
+        existing.setCostAmount(new BigDecimal("100.00"));
+        existing.setCreatedAt(OffsetDateTime.now().minusDays(1));
+
+        ContractEntity saved = new ContractEntity();
+        saved.setId(55L);
+        saved.setClient(client);
+        saved.setCostAmount(request.getCostAmount());
+        saved.setCreatedAt(existing.getCreatedAt());
+
+        when(contractRepository.findById(55L)).thenReturn(Optional.of(existing));
+        when(contractRepository.save(existing)).thenReturn(saved);
+
+        ResponseEntity<ContractDto> response = contractControllerWrite.updateContractCost(request);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(request.getCostAmount(), response.getBody().getCostAmount());
+        assertEquals(saved.getId(), response.getBody().getId());
+
+        verify(contractRepository).findById(55L);
+        verify(contractRepository).save(existing);
+        verifyNoMoreInteractions(contractRepository, clientRepository);
+    }
+
+    @Test
+    void updateContractCostReturnsNotFoundWhenMissing() {
+        UpdateCostAmountRequestDto request = new UpdateCostAmountRequestDto();
+        request.setContractId(404L);
+        request.setCostAmount(new BigDecimal("10.00"));
+
+        when(contractRepository.findById(404L)).thenReturn(Optional.empty());
+
+        ResponseEntity<ContractDto> response = contractControllerWrite.updateContractCost(request);
+
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+        assertNull(response.getBody());
+
+        verify(contractRepository).findById(404L);
+        verify(contractRepository, never()).save(Mockito.any());
+        verifyNoMoreInteractions(contractRepository, clientRepository);
     }
 }
