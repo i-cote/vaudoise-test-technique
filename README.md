@@ -118,3 +118,61 @@ These tests exercise real HTTP calls against the containerized API and database,
 
 ## Architecture (≤1000 chars)
 The backend is organized around a layered Spring Boot application. Persistence is handled by Spring Data JPA repositories that map to PostgreSQL tables maintained by SQL migrations. Each domain (clients, contracts) exposes two controllers: read endpoints live in dedicated read controllers to isolate query-specific concerns, while write controllers focus on commands and validation. Entities map cleanly to schema objects and DTOs enforce external contracts. Database triggers enforce immutability and automatically refresh timestamps, keeping the API layer lean. Migrations and constraints encode most of the validation rules. Docker Compose orchestrates API, database, and migrator services so the same topology powers both local development and integration tests.
+
+## 🧱 Additional Work (Post-Delivery Enhancements)
+
+A few days after submitting the initial deliverable on **Thursday, October 16**, I took the initiative to implement some *additional features*.
+
+#### 🔹 API Documentation (Swagger)
+
+The project now includes an integrated *Swagger UI*. It provides the following capabilities:
+
+- 📘 Document all endpoints with example requests and responses
+- ⚡ Quickly test the API directly from the browser without additional setup
+
+🔍 To access the swagger UI using the docker compose setup, go to localhost:8080 (root of the api).
+  The swagger UI is also available in *the live Kubernetes deployment* (see below).
+
+#### 🔹 API Error Handling Improvements
+
+The application now implements standardized error responses using **ProblemDetail** objects instead of returning only HTTP status codes without a body. Each error response now follows the [RFC7807](https://datatracker.ietf.org/doc/html/rfc7807) specification, providing structured fields such as `type`, `title`, `status`, `detail`, and `instance`. This ensures clearer communication of error context to clients and aligns with modern REST API best practices.
+
+The following extension was *not required* by the assignment but reflects my interest in seeing things run end-to-end and my background in DevOps engineering.
+
+### 🔹 Kubernetes Deployment
+
+The application now ships with a complete set of Kubernetes manifests located under the [`/kubernetes`](./kubernetes) directory:
+
+- `Deployment` and `Service` for the API
+- `StatefulSet` and `PersistentVolumeClaim` for PostgreSQL
+- `ConfigMap` for schema initialization scripts
+- `Job` to run database migrations automatically before API startup
+- `Ingress` with HTTPS routing
+
+All manifests are parameterized to run in a dedicated namespace named `vaudoise`.
+
+#### 🔹Live Demo Environment
+
+To make the system tangible, I deployed these manifests to my **personal Kubernetes cluster** and exposed two public entry points under a domain I own (icote.dev).
+
+##### 🌐 API Endpoint in Kubernetes
+
+👉 [https://clients-contracts-api.icote.dev](https://clients-contracts-api.icote.dev) *(click to access swagger)*
+
+> 🚀 **This is the live API instance hosted in my** ***Kubernetes cluster***.
+>
+> You can target it directly using `curl` commands or explore it interactively via the Swagger UI.
+
+
+
+##### 🖥️ Kubernetes Dashboard
+
+In addition to the API, a read-only **Kubernetes Dashboard** is available to visualize all deployed resources related to the demo
+
+[👉 ](https://cluster.icote.dev/#/workloads?namespace=vaudoise)[https://cluster.icote.dev/#/workloads?namespace=vaudoise](https://cluster.icote.dev/#/workloads?namespace=vaudoise)
+
+This dashboard is scoped to the `vaudoise` namespace and allows viewing pods, services, jobs, and other workloads associated with the demo.
+
+> 🔍 *You can freely explore all resources deployed for this demo (pods, services, jobs, etc.) within the ********************************************************************************************************************************************************`vaudoise`******************************************************************************************************************************************************** namespace through the read-only Dashboard view created specifically for this evaluation.*
+>
+> ⚠️ *If you encounter notification errors while browsing the Dashboard, they are due to permission restrictions: access is intentionally scoped to the ******************************************************************************************************************************************************`vaudoise`****************************************************************************************************************************************************** namespace only and not to the rest of the cluster.*
