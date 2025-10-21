@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: clients-contracts-db-config
+  namespace: vaudoise
+data:
+  POSTGRES_DB: clients_contracts
+  POSTGRES_USER: postgres
+  POSTGRES_HOST: clients-contracts-db-0.clients-contracts-db.vaudoise.svc.cluster.local
