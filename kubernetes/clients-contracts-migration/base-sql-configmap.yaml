@@ -1,0 +1,216 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: clients-contracts-migration-base-sql
+  namespace: vaudoise
+data:
+  01-schema.sql: |-
+    -- clients-contracts-db/01-schema.sql
+    -- Schema definition for the Clients & Contracts domain.
+    -- Target database: PostgreSQL 13+
+
+    BEGIN;
+
+    CREATE TABLE IF NOT EXISTS clients (
+        id BIGSERIAL PRIMARY KEY,
+        client_type TEXT NOT NULL,
+        email TEXT NOT NULL,
+        phone TEXT NOT NULL,
+        name TEXT NOT NULL,
+        birthdate DATE,
+        company_identifier TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS contracts (
+        id BIGSERIAL PRIMARY KEY,
+        client_id BIGINT NOT NULL,
+        start_date DATE NOT NULL DEFAULT CURRENT_DATE,
+        end_date DATE,
+        cost_amount NUMERIC(12, 2) NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    COMMIT;
+  02-constraints.sql: |-
+    -- clients-contracts-db/03-constraints.sql
+    -- Constraint definitions for Clients & Contracts domain.
+    -- Target database: PostgreSQL 13+
+
+    BEGIN;
+
+    DO $$
+    BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'clients_type_check') THEN
+            ALTER TABLE clients
+                ADD CONSTRAINT clients_type_check CHECK (client_type IN ('PERSON', 'COMPANY'));
+        END IF;
+    END
+    $$;
+
+    DO $$
+    BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'clients_person_requires_birthdate') THEN
+            ALTER TABLE clients
+                ADD CONSTRAINT clients_person_requires_birthdate CHECK (
+                    (client_type = 'PERSON' AND birthdate IS NOT NULL AND company_identifier IS NULL)
+                    OR (client_type = 'COMPANY' AND birthdate IS NULL)
+                );
+        END IF;
+    END
+    $$;
+
+    DO $$
+    BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'clients_company_requires_identifier') THEN
+            ALTER TABLE clients
+                ADD CONSTRAINT clients_company_requires_identifier CHECK (
+                    (client_type = 'COMPANY' AND company_identifier IS NOT NULL)
+                    OR (client_type = 'PERSON' AND company_identifier IS NULL)
+                );
+        END IF;
+    END
+    $$;
+
+    DO $$
+    BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'clients_email_format') THEN
+            ALTER TABLE clients
+                ADD CONSTRAINT clients_email_format CHECK (
+                    email ~ '^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$'
+                );
+        END IF;
+    END
+    $$;
+
+    DO $$
+    BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'clients_phone_format') THEN
+            ALTER TABLE clients
+                ADD CONSTRAINT clients_phone_format CHECK (
+                    phone ~ '^[+0-9(). \\-]{7,20}$'
+                );
+        END IF;
+    END
+    $$;
+
+    DO $$
+    BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'contracts_cost_amount_positive') THEN
+            ALTER TABLE contracts
+                ADD CONSTRAINT contracts_cost_amount_positive CHECK (cost_amount >= 0);
+        END IF;
+    END
+    $$;
+
+    DO $$
+    BEGIN
+        IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'contracts_end_date_after_start') THEN
+            ALTER TABLE contracts
+                DROP CONSTRAINT contracts_end_date_after_start;
+        END IF;
+
+        ALTER TABLE contracts
+            ADD CONSTRAINT contracts_end_date_after_start CHECK (
+                end_date IS NULL OR end_date > start_date
+            );
+    END
+    $$;
+
+    CREATE UNIQUE INDEX IF NOT EXISTS ux_clients_email ON clients ((LOWER(email)));
+
+    CREATE UNIQUE INDEX IF NOT EXISTS ux_clients_company_identifier
+        ON clients (company_identifier)
+        WHERE client_type = 'COMPANY';
+
+    COMMIT;
+  03-triggers.sql: |-
+    -- clients-contracts-db/04-triggers.sql
+    -- Trigger function and binding definitions for Clients & Contracts domain.
+    -- Target database: PostgreSQL 13+
+
+    BEGIN;
+
+    CREATE OR REPLACE FUNCTION trg_clients_before_update()
+    RETURNS TRIGGER AS $$
+    BEGIN
+        IF NEW.birthdate IS DISTINCT FROM OLD.birthdate THEN
+            RAISE EXCEPTION 'birthdate is immutable';
+        END IF;
+
+        IF NEW.company_identifier IS DISTINCT FROM OLD.company_identifier THEN
+            RAISE EXCEPTION 'company_identifier is immutable';
+        END IF;
+
+        IF NEW IS DISTINCT FROM OLD THEN
+            NEW.updated_at = NOW();
+        END IF;
+
+        RETURN NEW;
+    END;
+    $$ LANGUAGE plpgsql;
+
+    CREATE OR REPLACE FUNCTION trg_set_updated_at()
+    RETURNS TRIGGER AS $$
+    BEGIN
+        IF NEW IS DISTINCT FROM OLD THEN
+            NEW.updated_at = NOW();
+        END IF;
+
+        RETURN NEW;
+    END;
+    $$ LANGUAGE plpgsql;
+
+    DROP TRIGGER IF EXISTS clients_before_update ON clients;
+    CREATE TRIGGER clients_before_update
+    BEFORE UPDATE ON clients
+    FOR EACH ROW
+    EXECUTE FUNCTION trg_clients_before_update();
+
+    DROP TRIGGER IF EXISTS contracts_set_updated_at ON contracts;
+    CREATE TRIGGER contracts_set_updated_at
+    BEFORE UPDATE ON contracts
+    FOR EACH ROW
+    EXECUTE FUNCTION trg_set_updated_at();
+
+    COMMIT;
+  04-views.sql: |-
+    -- clients-contracts-db/05-views.sql
+    -- View definitions for Clients & Contracts domain.
+    -- Target database: PostgreSQL 13+
+
+    BEGIN;
+
+    CREATE OR REPLACE VIEW active_contracts AS
+    SELECT *
+    FROM contracts
+    WHERE end_date IS NULL OR end_date > CURRENT_DATE;
+
+    CREATE OR REPLACE VIEW client_active_contract_totals AS
+    SELECT
+        client_id,
+        SUM(cost_amount) AS active_contract_total
+    FROM active_contracts
+    GROUP BY client_id;
+
+    COMMIT;
+  05-indexes.sql: |-
+    -- clients-contracts-db/02-indexes.sql
+    -- Supplemental index definitions for Clients & Contracts domain.
+    -- Target database: PostgreSQL 13+
+
+    BEGIN;
+
+    CREATE INDEX IF NOT EXISTS idx_clients_phone ON clients (phone);
+
+    CREATE INDEX IF NOT EXISTS idx_contracts_client ON contracts (client_id);
+
+    CREATE INDEX IF NOT EXISTS idx_contracts_client_updated_at
+        ON contracts (client_id, updated_at);
+
+    CREATE INDEX IF NOT EXISTS idx_contracts_client_end_date
+        ON contracts (client_id, end_date);
+
+    COMMIT;

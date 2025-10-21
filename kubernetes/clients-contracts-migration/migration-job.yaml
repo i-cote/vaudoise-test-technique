@@ -1,0 +1,62 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: clients-contracts-migration-test
+  namespace: vaudoise
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        job-name: clients-contracts-migration-test
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          command:
+            - /bin/sh
+            - -c
+            - |
+              until pg_isready; do
+                echo "Waiting for database..."
+                sleep 2
+              done
+              cd /migrations && psql -f ./00-setup.sql
+          env:
+            - name: PGDATABASE
+              valueFrom:
+                configMapKeyRef:
+                  name: clients-contracts-db-config
+                  key: POSTGRES_DB
+            - name: PGUSER
+              valueFrom:
+                configMapKeyRef:
+                  name: clients-contracts-db-config
+                  key: POSTGRES_USER
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: clients-contracts-db-secret
+                  key: POSTGRES_PASSWORD
+            - name: PGHOST
+              valueFrom:
+                configMapKeyRef:
+                  name: clients-contracts-db-config
+                  key: POSTGRES_HOST
+            - name: PGPORT
+              value: "5432"
+          volumeMounts:
+            - name: setup-sql
+              mountPath: /migrations
+              readOnly: true
+            - name: base-sql
+              mountPath: /migrations/base
+              readOnly: true
+      volumes:
+        - name: setup-sql
+          configMap:
+            name: clients-contracts-migration-setup-sql
+        - name: base-sql
+          configMap:
+            name: clients-contracts-migration-base-sql
