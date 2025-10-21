@@ -16,3 +16,14 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
+
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  swagger-ui:
+    enabled: true
+    path: /
+    operationsSorter: method   # nice quality-of-life tweak
+    tagsSorter: alpha
+
