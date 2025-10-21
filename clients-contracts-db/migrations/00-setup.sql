@@ -17,11 +17,5 @@
 \echo 'Applying performance indexes...'
 \i ./base/05-indexes.sql
 
-\echo 'Loading client fixtures...'
-\i ./fixtures/10-fixtures-clients.sql
-
-\echo 'Loading contract fixtures...'
-\i ./fixtures/11-fixtures-contracts.sql
-
 \echo 'Database bootstrap completed.'
 
