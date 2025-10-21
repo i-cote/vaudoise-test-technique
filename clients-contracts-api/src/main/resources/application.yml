@@ -5,9 +5,9 @@ server:
 # Database configuration
 spring:
   datasource:
-    url: jdbc:postgresql://db:5432/clients_contracts_db
-    username: postgres
-    password: postgres
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
