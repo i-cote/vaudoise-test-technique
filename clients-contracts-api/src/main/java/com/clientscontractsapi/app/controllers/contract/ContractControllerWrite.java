@@ -1,5 +1,7 @@
 package com.clientscontractsapi.app.controllers.contract;
 
+import com.clientscontractsapi.app.exceptions.BadRequestException;
+import com.clientscontractsapi.app.exceptions.ResourceNotFoundException;
 import com.clientscontractsapi.app.models.client.entity.ClientEntity;
 import com.clientscontractsapi.app.models.contract.dto.ContractDto;
 import com.clientscontractsapi.app.models.contract.dto.CreateContractRequestDto;
@@ -33,19 +35,22 @@ public class ContractControllerWrite {
 
     @PostMapping("/create-contract")
     public ResponseEntity<ContractDto> createContract(@Valid @RequestBody CreateContractRequestDto request) {
-        Optional<ClientEntity> clientOpt = clientRepository.findById(request.getClientId());
-        if (clientOpt.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
-        }
+        ClientEntity client =
+                clientRepository
+                        .findById(request.getClientId())
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Client with id %d was not found.".formatted(request.getClientId())));
 
         LocalDate startDate = Optional.ofNullable(request.getStartDate()).orElse(LocalDate.now());
         LocalDate endDate = request.getEndDate();
         if (endDate != null && endDate.isBefore(startDate)) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+            throw new BadRequestException("End date must be on or after the start date.");
         }
 
         ContractEntity contract = new ContractEntity();
-        contract.setClient(clientOpt.get());
+        contract.setClient(client);
         contract.setStartDate(startDate);
         contract.setEndDate(endDate);
         contract.setCostAmount(request.getCostAmount());
@@ -61,12 +66,13 @@ public class ContractControllerWrite {
     @PatchMapping("/update-contract")
     public ResponseEntity<ContractDto> updateContractCost(
             @Valid @RequestBody UpdateCostAmountRequestDto request) {
-        Optional<ContractEntity> contractOpt = contractRepository.findById(request.getContractId());
-        if (contractOpt.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
-        }
-
-        ContractEntity contract = contractOpt.get();
+        ContractEntity contract =
+                contractRepository
+                        .findById(request.getContractId())
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Contract with id %d was not found.".formatted(request.getContractId())));
         contract.setCostAmount(request.getCostAmount());
 
         ContractEntity saved = contractRepository.save(contract);

@@ -1,13 +1,14 @@
 package com.clientscontractsapi.unit.controllers.client;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.clientscontractsapi.app.controllers.client.ClientControllerRead;
+import com.clientscontractsapi.app.exceptions.ResourceNotFoundException;
 import com.clientscontractsapi.app.models.client.entity.ClientEntity;
 import com.clientscontractsapi.app.persistency.client.ClientRepository;
 import java.time.LocalDate;
@@ -53,13 +54,13 @@ class ClientControllerReadTest {
     }
 
     @Test
-    void getClientByIdReturns404WhenMissing() {
+    void getClientByIdThrowsWhenMissing() {
         when(clientRepository.findById(404L)).thenReturn(Optional.empty());
 
-        ResponseEntity<ClientEntity> response = clientController.getClientById(404L);
+        ResourceNotFoundException exception =
+                assertThrows(ResourceNotFoundException.class, () -> clientController.getClientById(404L));
 
-        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
-        assertNull(response.getBody());
+        assertEquals("Client with id 404 was not found.", exception.getMessage());
         verify(clientRepository).findById(404L);
         verifyNoMoreInteractions(clientRepository);
     }

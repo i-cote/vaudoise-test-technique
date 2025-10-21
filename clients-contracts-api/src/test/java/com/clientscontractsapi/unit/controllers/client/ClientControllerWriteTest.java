@@ -4,12 +4,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
 import com.clientscontractsapi.app.controllers.client.ClientControllerWrite;
+import com.clientscontractsapi.app.exceptions.BadRequestException;
+import com.clientscontractsapi.app.exceptions.ResourceNotFoundException;
 import com.clientscontractsapi.app.models.client.dto.CreateClientRequestDto;
 import com.clientscontractsapi.app.models.client.dto.UpdateClientRequestDto;
 import com.clientscontractsapi.app.models.client.entity.ClientEntity;
@@ -53,6 +56,7 @@ class ClientControllerWriteTest {
         ClientEntity savedEntity = new ClientEntity();
         savedEntity.setId(100L);
 
+        when(clientRepository.existsByEmailIgnoreCase("john.doe@example.com")).thenReturn(false);
         when(clientRepository.save(ArgumentMatchers.any(ClientEntity.class))).thenReturn(savedEntity);
 
         ResponseEntity<ClientEntity> response = clientControllerWrite.createClient(request);
@@ -61,6 +65,7 @@ class ClientControllerWriteTest {
         assertSame(savedEntity, response.getBody());
 
         ArgumentCaptor<ClientEntity> captor = ArgumentCaptor.forClass(ClientEntity.class);
+        verify(clientRepository).existsByEmailIgnoreCase("john.doe@example.com");
         verify(clientRepository).save(captor.capture());
         verifyNoMoreInteractions(clientRepository, contractRepository);
 
@@ -86,6 +91,7 @@ class ClientControllerWriteTest {
         ClientEntity savedEntity = new ClientEntity();
         savedEntity.setId(200L);
 
+        when(clientRepository.existsByEmailIgnoreCase("acme@example.com")).thenReturn(false);
         when(clientRepository.save(ArgumentMatchers.any(ClientEntity.class))).thenReturn(savedEntity);
 
         ResponseEntity<ClientEntity> response = clientControllerWrite.createClient(request);
@@ -94,6 +100,7 @@ class ClientControllerWriteTest {
         assertSame(savedEntity, response.getBody());
 
         ArgumentCaptor<ClientEntity> captor = ArgumentCaptor.forClass(ClientEntity.class);
+        verify(clientRepository).existsByEmailIgnoreCase("acme@example.com");
         verify(clientRepository).save(captor.capture());
         verifyNoMoreInteractions(clientRepository, contractRepository);
 
@@ -140,7 +147,56 @@ class ClientControllerWriteTest {
     }
 
     @Test
-    void updateClientReturnsNotFoundWhenMissing() {
+    void createPersonClientRequiresBirthdate() {
+        CreateClientRequestDto request = new CreateClientRequestDto();
+        request.setEmail("jane@example.com");
+        request.setPhone("+111222333");
+        request.setName("Jane Doe");
+
+        BadRequestException exception =
+                assertThrows(BadRequestException.class, () -> clientControllerWrite.createClient(request));
+
+        assertEquals("Persons must include a birthdate.", exception.getMessage());
+        verifyNoMoreInteractions(clientRepository, contractRepository);
+    }
+
+    @Test
+    void createCompanyClientMustNotIncludeBirthdate() {
+        CreateClientRequestDto request = new CreateClientRequestDto();
+        request.setEmail("corp@example.com");
+        request.setPhone("+444555666");
+        request.setName("Corp");
+        request.setCompanyIdentifier("CHE-123.456.789");
+        request.setBirthdate(LocalDate.of(1990, 1, 1));
+
+        BadRequestException exception =
+                assertThrows(BadRequestException.class, () -> clientControllerWrite.createClient(request));
+
+        assertEquals("Companies must not include a birthdate.", exception.getMessage());
+        verifyNoMoreInteractions(clientRepository, contractRepository);
+    }
+
+    @Test
+    void createClientThrowsWhenEmailAlreadyExists() {
+        CreateClientRequestDto request = new CreateClientRequestDto();
+        request.setEmail("existing@example.com");
+        request.setPhone("+123123123");
+        request.setName("Existing Person");
+        request.setBirthdate(LocalDate.of(1995, 5, 10));
+
+        when(clientRepository.existsByEmailIgnoreCase("existing@example.com")).thenReturn(true);
+
+        BadRequestException exception =
+                assertThrows(BadRequestException.class, () -> clientControllerWrite.createClient(request));
+
+        assertEquals("Client with email existing@example.com already exists.", exception.getMessage());
+
+        verify(clientRepository).existsByEmailIgnoreCase("existing@example.com");
+        verifyNoMoreInteractions(clientRepository, contractRepository);
+    }
+
+    @Test
+    void updateClientThrowsNotFoundWhenMissing() {
         UpdateClientRequestDto request = new UpdateClientRequestDto();
         request.setId(404L);
         request.setEmail("missing@example.com");
@@ -149,10 +205,10 @@ class ClientControllerWriteTest {
 
         when(clientRepository.findById(404L)).thenReturn(Optional.empty());
 
-        ResponseEntity<ClientEntity> response = clientControllerWrite.updateClient(request);
+        ResourceNotFoundException exception =
+                assertThrows(ResourceNotFoundException.class, () -> clientControllerWrite.updateClient(request));
 
-        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
-        assertNull(response.getBody());
+        assertEquals("Client with id 404 was not found.", exception.getMessage());
 
         verify(clientRepository).findById(404L);
         verify(contractRepository, never()).findByClientId(Mockito.anyLong());
@@ -211,12 +267,13 @@ class ClientControllerWriteTest {
     }
 
     @Test
-    void deleteClientReturnsNotFoundWhenMissing() {
+    void deleteClientThrowsNotFoundWhenMissing() {
         when(clientRepository.findById(404L)).thenReturn(Optional.empty());
 
-        ResponseEntity<Void> response = clientControllerWrite.deleteClient(404L);
+        ResourceNotFoundException exception =
+                assertThrows(ResourceNotFoundException.class, () -> clientControllerWrite.deleteClient(404L));
 
-        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+        assertEquals("Client with id 404 was not found.", exception.getMessage());
 
         verify(clientRepository).findById(404L);
         verify(contractRepository, never()).findByClientId(Mockito.anyLong());

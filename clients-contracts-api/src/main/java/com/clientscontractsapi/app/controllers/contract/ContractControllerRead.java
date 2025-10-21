@@ -1,5 +1,6 @@
 package com.clientscontractsapi.app.controllers.contract;
 
+import com.clientscontractsapi.app.exceptions.ResourceNotFoundException;
 import com.clientscontractsapi.app.models.contract.dto.ActiveContractsCostResponseDto;
 import com.clientscontractsapi.app.models.contract.dto.ContractDto;
 import com.clientscontractsapi.app.models.contract.entity.ContractEntity;
@@ -10,7 +11,6 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -34,7 +34,7 @@ public class ContractControllerRead {
     @GetMapping("/clients/{clientId}/active-cost")
     public ResponseEntity<ActiveContractsCostResponseDto> getActiveContractsCost(@PathVariable Long clientId) {
         if (!clientRepository.existsById(clientId)) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+            throw new ResourceNotFoundException("Client with id %d was not found.".formatted(clientId));
         }
 
         BigDecimal sum =
@@ -50,7 +50,7 @@ public class ContractControllerRead {
                     @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
                     OffsetDateTime updatedSince) {
         if (!clientRepository.existsById(clientId)) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+            throw new ResourceNotFoundException("Client with id %d was not found.".formatted(clientId));
         }
 
         LocalDate today = LocalDate.now();

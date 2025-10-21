@@ -1,5 +1,7 @@
 package com.clientscontractsapi.app.controllers.client;
 
+import com.clientscontractsapi.app.exceptions.BadRequestException;
+import com.clientscontractsapi.app.exceptions.ResourceNotFoundException;
 import com.clientscontractsapi.app.models.client.dto.CreateClientRequestDto;
 import com.clientscontractsapi.app.models.client.dto.UpdateClientRequestDto;
 import com.clientscontractsapi.app.models.client.entity.ClientEntity;
@@ -10,7 +12,6 @@ import jakarta.validation.Valid;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.Optional;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
@@ -39,10 +40,14 @@ public class ClientControllerWrite {
         boolean isCompany = StringUtils.hasText(request.getCompanyIdentifier());
 
         if (isCompany && request.getBirthdate() != null) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+            throw new BadRequestException("Companies must not include a birthdate.");
         }
         if (!isCompany && request.getBirthdate() == null) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+            throw new BadRequestException("Persons must include a birthdate.");
+        }
+        if (clientRepository.existsByEmailIgnoreCase(request.getEmail())) {
+            throw new BadRequestException(
+                    "Client with email %s already exists.".formatted(request.getEmail()));
         }
 
         ClientEntity client = new ClientEntity();
@@ -63,12 +68,13 @@ public class ClientControllerWrite {
 
     @PutMapping("/update-client")
     public ResponseEntity<ClientEntity> updateClient(@Valid @RequestBody UpdateClientRequestDto request) {
-        Optional<ClientEntity> existingClient = clientRepository.findById(request.getId());
-        if (existingClient.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
-        }
-
-        ClientEntity client = existingClient.get();
+        ClientEntity client =
+                clientRepository
+                        .findById(request.getId())
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Client with id %d was not found.".formatted(request.getId())));
         client.setEmail(request.getEmail());
         client.setPhone(request.getPhone());
         client.setName(request.getName());
@@ -79,10 +85,13 @@ public class ClientControllerWrite {
 
     @DeleteMapping("/delete-client/{id}")
     public ResponseEntity<Void> deleteClient(@PathVariable Long id) {
-        Optional<ClientEntity> clientOpt = clientRepository.findById(id);
-        if (clientOpt.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
-        }
+        ClientEntity client =
+                clientRepository
+                        .findById(id)
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Client with id %d was not found.".formatted(id)));
 
         LocalDate today = LocalDate.now();
         List<ContractEntity> contracts = contractRepository.findByClientId(id);
@@ -91,7 +100,7 @@ public class ClientControllerWrite {
             contractRepository.saveAll(contracts);
         }
 
-        clientRepository.delete(clientOpt.get());
+        clientRepository.delete(client);
         return ResponseEntity.noContent().build();
     }
 }

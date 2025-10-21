@@ -2,12 +2,14 @@ package com.clientscontractsapi.unit.controllers.contract;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.clientscontractsapi.app.controllers.contract.ContractControllerRead;
+import com.clientscontractsapi.app.exceptions.ResourceNotFoundException;
 import com.clientscontractsapi.app.models.client.entity.ClientEntity;
 import com.clientscontractsapi.app.models.contract.dto.ActiveContractsCostResponseDto;
 import com.clientscontractsapi.app.models.contract.dto.ContractDto;
@@ -80,13 +82,14 @@ class ContractControllerReadTest {
     }
 
     @Test
-    void getActiveContractsCostReturnsNotFoundWhenClientMissing() {
+    void getActiveContractsCostThrowsWhenClientMissing() {
         when(clientRepository.existsById(404L)).thenReturn(false);
 
-        ResponseEntity<ActiveContractsCostResponseDto> response =
-                contractControllerRead.getActiveContractsCost(404L);
+        ResourceNotFoundException exception =
+                assertThrows(
+                        ResourceNotFoundException.class, () -> contractControllerRead.getActiveContractsCost(404L));
 
-        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+        assertEquals("Client with id 404 was not found.", exception.getMessage());
 
         verify(clientRepository).existsById(404L);
         verify(contractRepository, never())
@@ -180,13 +183,15 @@ class ContractControllerReadTest {
     }
 
     @Test
-    void getActiveContractsForClientReturnsNotFoundWhenMissing() {
+    void getActiveContractsForClientThrowsWhenMissing() {
         when(clientRepository.existsById(88L)).thenReturn(false);
 
-        ResponseEntity<List<ContractDto>> response =
-                contractControllerRead.getActiveContractsForClient(88L, null);
+        ResourceNotFoundException exception =
+                assertThrows(
+                        ResourceNotFoundException.class,
+                        () -> contractControllerRead.getActiveContractsForClient(88L, null));
 
-        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+        assertEquals("Client with id 88 was not found.", exception.getMessage());
 
         verify(clientRepository).existsById(88L);
         verify(contractRepository, never())

@@ -4,12 +4,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.clientscontractsapi.app.controllers.contract.ContractControllerWrite;
+import com.clientscontractsapi.app.exceptions.BadRequestException;
+import com.clientscontractsapi.app.exceptions.ResourceNotFoundException;
 import com.clientscontractsapi.app.models.client.entity.ClientEntity;
 import com.clientscontractsapi.app.models.contract.dto.ContractDto;
 import com.clientscontractsapi.app.models.contract.dto.CreateContractRequestDto;
@@ -91,7 +94,7 @@ class ContractControllerWriteTest {
     }
 
     @Test
-    void createContractReturnsBadRequestWhenEndBeforeStart() {
+    void createContractThrowsBadRequestWhenEndBeforeStart() {
         CreateContractRequestDto request = new CreateContractRequestDto();
         request.setClientId(12L);
         request.setStartDate(LocalDate.of(2024, 1, 10));
@@ -103,10 +106,10 @@ class ContractControllerWriteTest {
 
         when(clientRepository.findById(12L)).thenReturn(Optional.of(client));
 
-        ResponseEntity<ContractDto> response = contractControllerWrite.createContract(request);
+        BadRequestException exception =
+                assertThrows(BadRequestException.class, () -> contractControllerWrite.createContract(request));
 
-        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
-        assertNull(response.getBody());
+        assertEquals("End date must be on or after the start date.", exception.getMessage());
 
         verify(clientRepository).findById(12L);
         verify(contractRepository, never()).save(Mockito.any());
@@ -114,17 +117,17 @@ class ContractControllerWriteTest {
     }
 
     @Test
-    void createContractReturnsNotFoundWhenClientMissing() {
+    void createContractThrowsNotFoundWhenClientMissing() {
         CreateContractRequestDto request = new CreateContractRequestDto();
         request.setClientId(999L);
         request.setCostAmount(new BigDecimal("75.00"));
 
         when(clientRepository.findById(999L)).thenReturn(Optional.empty());
 
-        ResponseEntity<ContractDto> response = contractControllerWrite.createContract(request);
+        ResourceNotFoundException exception =
+                assertThrows(ResourceNotFoundException.class, () -> contractControllerWrite.createContract(request));
 
-        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
-        assertNull(response.getBody());
+        assertEquals("Client with id 999 was not found.", exception.getMessage());
 
         verify(clientRepository).findById(999L);
         verify(contractRepository, never()).save(Mockito.any());
@@ -168,17 +171,17 @@ class ContractControllerWriteTest {
     }
 
     @Test
-    void updateContractCostReturnsNotFoundWhenMissing() {
+    void updateContractCostThrowsNotFoundWhenMissing() {
         UpdateCostAmountRequestDto request = new UpdateCostAmountRequestDto();
         request.setContractId(404L);
         request.setCostAmount(new BigDecimal("10.00"));
 
         when(contractRepository.findById(404L)).thenReturn(Optional.empty());
 
-        ResponseEntity<ContractDto> response = contractControllerWrite.updateContractCost(request);
+        ResourceNotFoundException exception =
+                assertThrows(ResourceNotFoundException.class, () -> contractControllerWrite.updateContractCost(request));
 
-        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
-        assertNull(response.getBody());
+        assertEquals("Contract with id 404 was not found.", exception.getMessage());
 
         verify(contractRepository).findById(404L);
         verify(contractRepository, never()).save(Mockito.any());
