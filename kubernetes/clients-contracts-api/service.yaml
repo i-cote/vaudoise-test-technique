@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: clients-contracts-api
+  namespace: vaudoise
+spec:
+  type: ClusterIP
+  selector:
+    app: clients-contracts-api
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+      protocol: TCP

@@ -1,0 +1,18 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: clients-contracts-api
+  namespace: vaudoise
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: clients-contracts-api.icote.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: clients-contracts-api
+                port:
+                  number: 80
